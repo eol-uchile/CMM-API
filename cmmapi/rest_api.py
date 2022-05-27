@@ -6,10 +6,11 @@ from django.core.exceptions import ValidationError
 from django.contrib.auth.base_user import BaseUserManager
 from django.contrib.auth.models import User
 from django.db import transaction
+from django.views.decorators.cache import cache_control
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .serializers import CMMSerializer
-from .utils import default_function
+from .serializers import CMMCourseSerializer, CMMProblemSerializer
+from .utils import get_students_features, get_status_tasks, export_ora2_data, get_problem_responses
 from openedx.core.lib.api.authentication import BearerAuthentication
 from datetime import datetime as dt
 from rest_framework import permissions
@@ -20,41 +21,82 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-class CMMApi(APIView):
+class CMMApiStudentProfile(APIView):
+    authentication_classes = (BearerAuthentication,)
+    permission_classes = (permissions.IsAuthenticated,)
+
+    @transaction.non_atomic_requests
+    def dispatch(self, args, **kwargs):
+        return super(CMMApiStudentProfile, self).dispatch(args, **kwargs)
+
+    def post(self, request, format=None):
+        if not request.user.is_anonymous:
+            serializer = CMMCourseSerializer(data=request.data)
+            if serializer.is_valid():
+                response = get_students_features(request, serializer.data['course_id'])
+                return Response(data=response, status=status.HTTP_200_OK)
+            else:
+                logger.error("CMMApi - serializer is not valid")
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            logger.error("CMMApi - User is Anonymous or dont have permission")
+            return Response({'error': 'User dont have permission'}, status=status.HTTP_400_BAD_REQUEST)
+
+class CMMApiORA2Report(APIView):
+    authentication_classes = (BearerAuthentication,)
+    permission_classes = (permissions.IsAuthenticated,)
+
+    @transaction.non_atomic_requests
+    def dispatch(self, args, **kwargs):
+        return super(CMMApiORA2Report, self).dispatch(args, **kwargs)
+
+    def post(self, request, format=None):
+        if not request.user.is_anonymous:
+            serializer = CMMCourseSerializer(data=request.data)
+            if serializer.is_valid():
+                response = export_ora2_data(request, serializer.data['course_id'])
+                return Response(data=response, status=status.HTTP_200_OK)
+            else:
+                logger.error("CMMApi - serializer is not valid")
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            logger.error("CMMApi - User is Anonymous or dont have permission")
+            return Response({'error': 'User dont have permission'}, status=status.HTTP_400_BAD_REQUEST)
+
+class CMMApiStatusTask(APIView):
     authentication_classes = (BearerAuthentication,)
     permission_classes = (permissions.IsAuthenticated,)
 
     def get(self, request, format=None):
         if not request.user.is_anonymous:
-            serializer = CMMSerializer(data=request.data)
+            serializer = CMMCourseSerializer(data=request.data)
             if serializer.is_valid():
-                result = self.validate(serializer.data)
-                if result:
-                    return Response(data={'result':'success'}, status=status.HTTP_200_OK)
-                else:
-                    return Response(data={'result':'error'}, status=status.HTTP_200_OK)
+                response = get_status_tasks(serializer.data['course_id'])
+                return Response(data=response, status=status.HTTP_200_OK)
             else:
                 logger.error("CMMApi - serializer is not valid")
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         else:
             logger.error("CMMApi - User is Anonymous or dont have permission")
             return Response({'error': 'User dont have permission'}, status=status.HTTP_400_BAD_REQUEST)
+
+class CMMApiProblemReport(APIView):
+    authentication_classes = (BearerAuthentication,)
+    permission_classes = (permissions.IsAuthenticated,)
+
+    @transaction.non_atomic_requests
+    def dispatch(self, args, **kwargs):
+        return super(CMMApiProblemReport, self).dispatch(args, **kwargs)
 
     def post(self, request, format=None):
         if not request.user.is_anonymous:
-            serializer = CMMSerializer(data=request.data)
+            serializer = CMMProblemSerializer(data=request.data)
             if serializer.is_valid():
-                result = self.validate(serializer.data)
-                if result:
-                    return Response(data={'result':'success'}, status=status.HTTP_200_OK)
-                else:
-                    return Response(data={'result':'error'}, status=status.HTTP_400_BAD_REQUEST)
+                response = get_problem_responses(request, serializer.data['block_id'])
+                return Response(data=response, status=status.HTTP_200_OK)
             else:
                 logger.error("CMMApi - serializer is not valid")
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         else:
             logger.error("CMMApi - User is Anonymous or dont have permission")
             return Response({'error': 'User dont have permission'}, status=status.HTTP_400_BAD_REQUEST)
-
-    def validate(self, data):
-        return default_function(data)

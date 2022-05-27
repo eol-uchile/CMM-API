@@ -17,7 +17,7 @@ def package_data(pkg, roots):
 
 setup(
     name="cmmapi",
-    version="0.2",
+    version="0.1",
     author="Luis Santana",
     author_email="luis.santana@uchile.cl",
     description=".",
@@ -29,7 +29,6 @@ setup(
         "Operating System :: OS Independent",
     ],
     entry_points={
-        "cms.djangoapp": ["cmmapi = cmmapi.apps:CMMAPIConfig"],
         "lms.djangoapp": ["cmmapi = cmmapi.apps:CMMAPIConfig"]
     },
     package_data=package_data("cmmapi", ["static", "public"]),

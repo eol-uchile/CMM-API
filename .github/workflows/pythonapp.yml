@@ -13,4 +13,3 @@ jobs:
       run: |        
         cd .github/
         docker-compose run lms /openedx/requirements/cmmapi/.github/test_lms.sh && docker-compose down -v
-        docker-compose run cms /openedx/requirements/cmmapi/.github/test_cms.sh && docker-compose down -v

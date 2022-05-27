@@ -11,11 +11,6 @@ class CMMAPIConfig(AppConfig):
     name = 'cmmapi'
     plugin_app = {
         PluginURLs.CONFIG: {
-            ProjectType.CMS: {
-                PluginURLs.NAMESPACE: "cmmapi",
-                PluginURLs.REGEX: r"^cmm_api/",
-                PluginURLs.RELATIVE_PATH: "urls_cms",
-            },
             ProjectType.LMS: {
                 PluginURLs.NAMESPACE: "cmmapi",
                 PluginURLs.REGEX: r"^cmm_api/",

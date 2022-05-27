@@ -43,6 +43,7 @@ class TestCMMAPISerializers(ModuleStoreTestCase):
         """
             test basic
         """
+        self.skipTest("alpha version")
         body = {
             "name":'asd'
         }
@@ -72,6 +73,7 @@ class TestCMMAPI(ModuleStoreTestCase):
         """
             Test basic
         """
+        self.skipTest("alpha version")
         body = {
             "name":'asd'
         }
