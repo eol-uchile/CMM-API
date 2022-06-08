@@ -23,11 +23,13 @@ from xmodule.modulestore.django import modulestore
 from common.djangoapps.student import auth
 from common.djangoapps.student.roles import CourseInstructorRole, CourseStaffRole
 from common.djangoapps.course_action_state.models import CourseRerunState
+from common.djangoapps.student.models import CourseAccessRole
 from xmodule.modulestore import EdxJSONEncoder
 from xmodule.course_module import DEFAULT_START_DATE, CourseFields
 from openedx.core.djangoapps.models.course_details import CourseDetails
 from openedx.core.djangoapps.course_groups.cohorts import is_course_cohorted
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
+from .task import task_process_data
 from lms.djangoapps.courseware.access import has_access
 from datetime import datetime as dt
 import unidecode
@@ -39,9 +41,7 @@ import re
 import io
 
 logger = logging.getLogger(__name__)
-TASK_TYPES = ['cmmapi_profile_info_csv', 'cmmapi_problem_responses_csv', 'cmmapi_export_ora2_data']
-SUCCESS_MESSAGE_TEMPLATE = _(u"The {report_type} report is being created. "
-                             "To view the status of the report, see Pending Tasks below.")
+TASK_TYPES = ['cmmapi_profile_info_csv', 'cmmapi_problem_responses_csv', 'cmmapi_export_ora2_data', 'cmmapi_student_data']
 
 def validate_course(id_curso):
     """
@@ -56,6 +56,9 @@ def validate_course(id_curso):
         return False
 
 def validate_block(block_id):
+    """
+        Verify if block id is valid id
+    """
     try:
         aux = UsageKey.from_string(block_id)
         return True
@@ -69,9 +72,6 @@ def get_students_features(request, course_id):
     """
     course_key = CourseKey.from_string(course_id)
     course = get_course_by_id(course_key)
-    report_type = _('enrolled learner profile')
-    available_features = instructor_analytics_basic.AVAILABLE_FEATURES
-
     query_features = list(configuration_helpers.get_value('student_profile_download_fields', []))
 
     if not query_features:
@@ -116,9 +116,9 @@ def get_students_features(request, course_id):
     query_features_names['country'] = _('Country')
 
     try:
-        submit_calculate_students_features_csv(request, course_key, query_features)
-        success_status = SUCCESS_MESSAGE_TEMPLATE.format(report_type=report_type)
-        return {"status": success_status}
+        task = submit_calculate_students_features_csv(request, course_key, query_features)
+        success_status = 'El reporte Perfil de estudiantes está siendo creado.'
+        return {"status": success_status, 'task_id': task.task_id}
     except AlreadyRunningError:
         return {"status": 'Already Running Task'}
 
@@ -136,12 +136,25 @@ def submit_calculate_students_features_csv(request, course_key, features):
     return submit_task(request, task_type, task_class, course_key, task_input, task_key)
 
 def get_status_tasks(course_id):
+    """
+        Get list of all task in the course with url to download it
+    """
     course_key = CourseKey.from_string(course_id)
-    list_task = list(InstructorTask.objects.filter(task_type__in=TASK_TYPES, course_id=course_key).values('task_type', 'task_id', 'task_state'))
-    tasks = task_api.get_running_instructor_tasks(course_id)
-
+    list_task_aux = list(InstructorTask.objects.filter(task_type__in=TASK_TYPES, course_id=course_key).values('task_type', 'task_id', 'task_state', 'task_output'))
+    list_task_download = {}
+    list_task = []
+    report_store = ReportStore.from_config(config_name='GRADES_DOWNLOAD')
+    for name, url in report_store.links_for(course_key):
+        list_task_download[name] = url
+    for x in list_task_aux:
+        try:
+            task_output = json.loads(x['task_output'])
+            if 'report_name' in task_output and task_output['report_name'] in list_task_download:
+                x['url'] = list_task_download[task_output['report_name']]
+        except Exception:
+            logger.info("CMM-Api - Task output is not a dict type, task_id: {}".format(x['task_id']))
+        list_task.append(x)
     response_payload = {
-        'tasks_url': list(map(extract_task_features, tasks)),
         'list_task':list_task
     }
     return response_payload
@@ -151,12 +164,10 @@ def export_ora2_data(request, course_id):
     Pushes a Celery task which will aggregate ora2 responses for a course into a .csv
     """
     course_key = CourseKey.from_string(course_id)
-    report_type = _('ORA data')
-    
     try:
-        submit_export_ora2_data(request, course_key)
-        success_status = SUCCESS_MESSAGE_TEMPLATE.format(report_type=report_type)
-        return {"status": success_status}
+        task = submit_export_ora2_data(request, course_key)
+        success_status = 'El reporte ORA2 está siendo creado.'
+        return {"status": success_status, 'task_id': task.task_id}
     except AlreadyRunningError:
         return {"status": 'Already Running Task'}
 
@@ -173,53 +184,12 @@ def submit_export_ora2_data(request, course_key):
 
 def get_problem_responses(request, block_id):
     """
-    Initiate generation of a CSV file containing all student answers
-    to a given problem.
-
-    **Example requests**
-
-        POST /courses/{course_id}/instructor/api/get_problem_responses {
-            "problem_location": "{usage_key1},{usage_key2},{usage_key3}""
-        }
-        POST /courses/{course_id}/instructor/api/get_problem_responses {
-            "problem_location": "{usage_key}",
-            "problem_types_filter": "problem"
-        }
-
-        **POST Parameters**
-
-        A POST request can include the following parameters:
-
-        * problem_location: A comma-separated list of usage keys for the blocks
-          to include in the report. If the location is a block that contains
-          other blocks, (such as the course, section, subsection, or unit blocks)
-          then all blocks under that block will be included in the report.
-        * problem_types_filter: Optional. A comma-separated list of block types
-          to include in the repot. If set, only blocks of the specified types will
-          be included in the report.
-
-        To get data on all the poll and survey blocks in a course, you could
-        POST the usage key of the course for `problem_location`, and
-        "poll, survey" as the value for `problem_types_filter`.
-
-
-    **Example Response:**
-    If initiation is successful (or generation task is already running):
-    ```json
-    {
-        "status": "The problem responses report is being created. ...",
-        "task_id": "4e49522f-31d9-431a-9cff-dd2a2bf4c85a"
-    }
-    ```
-
-    Responds with BadRequest if any of the provided problem locations are faulty.
+        Generate Problem report task
     """
-    report_type = _('problem responses')
-
     try:
-        submit_calculate_problem_responses_csv(request, block_id)
-        success_status = SUCCESS_MESSAGE_TEMPLATE.format(report_type=report_type)
-        return {"status": success_status}
+        task = submit_calculate_problem_responses_csv(request, block_id)
+        success_status = 'El reporte Problem Responses está siendo creado.'
+        return {"status": success_status, 'task_id': task.task_id}
     except AlreadyRunningError:
         return {"status": 'Already Running Task'}
 
@@ -241,3 +211,15 @@ def submit_calculate_problem_responses_csv(request, problem_location):
     task_key = "CMM-API-PROBLEM-REPORT-{}".format(str(usage_key.course_key))
 
     return submit_task(request, task_type, task_class, usage_key.course_key, task_input, task_key)
+
+def get_students_roles(request, course_id):
+    """
+        Generate users role report
+    """
+    course_key = CourseKey.from_string(course_id)
+    try:
+        task = task_process_data(request, course_key)
+        success_status = 'El reporte Rol Usuarios está siendo creado.'
+        return {"status": success_status, 'task_id': task.task_id}
+    except AlreadyRunningError:
+        return {"status": 'Already Running Task'}

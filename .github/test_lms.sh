@@ -1,4 +1,5 @@
 #!/bin/dash
+pip install -e git+https://github.com/eol-uchile/uchileedxlogin@e5d63e812dc5343ecaf6a903c1bbfcfb7d1b41ee#egg=uchileedxlogin
 pip install -e /openedx/requirements/cmmapi
 
 cd /openedx/requirements/cmmapi

@@ -13,14 +13,6 @@ services:
     command: mongod --smallfiles --nojournal --storageEngine wiredTiger
     restart: unless-stopped
 
-  cms:
-    image: eoluchile/edx-platform:testing-koa
-    volumes:
-      - ../:/openedx/requirements/cmmapi
-    depends_on:
-      - memcached
-      - mongodb
-  
   lms:
     image: eoluchile/edx-platform:testing-koa
     volumes:

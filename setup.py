@@ -17,7 +17,7 @@ def package_data(pkg, roots):
 
 setup(
     name="cmmapi",
-    version="0.1",
+    version="0.2",
     author="Luis Santana",
     author_email="luis.santana@uchile.cl",
     description=".",
