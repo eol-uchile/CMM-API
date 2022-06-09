@@ -60,12 +60,6 @@ class CMMApiORA2Report(APIView):
         return super(CMMApiORA2Report, self).dispatch(args, **kwargs)
 
     def post(self, request, format=None):
-        """
-        Traceback (most recent call last):
-        File "/openedx/edx-platform/lms/djangoapps/instructor_task/api_helper.py", line 450, in submit_task
-            task_class.apply_async(task_args, task_id=task_id)
-        AttributeError: 'function' object has no attribute 'apply_async'
-        """
         if not request.user.is_anonymous:
             serializer = CMMCourseSerializer(data=request.data)
             if serializer.is_valid():
@@ -81,7 +75,6 @@ class CMMApiORA2Report(APIView):
 class CMMApiStatusTask(APIView):
     authentication_classes = (BearerAuthentication,)
     permission_classes = (permissions.IsAuthenticated,)
-    throttle_classes = [CustomUserRateThrottle]
 
     def get(self, request, format=None):
         if not request.user.is_anonymous:
