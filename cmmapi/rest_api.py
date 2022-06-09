@@ -9,8 +9,9 @@ from django.db import transaction
 from django.views.decorators.cache import cache_control
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.throttling import UserRateThrottle
 from .serializers import CMMCourseSerializer, CMMProblemSerializer
-from .utils import get_students_features, get_status_tasks, export_ora2_data, get_problem_responses, get_students_roles
+from .utils import get_students_features, get_status_tasks, utils_export_ora2_data, get_problem_responses, get_students_roles
 from openedx.core.lib.api.authentication import BearerAuthentication
 from datetime import datetime as dt
 from rest_framework import permissions
@@ -21,9 +22,16 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+class CustomUserRateThrottle(UserRateThrottle):
+    try:
+        rate= settings.CMM_API_RATE
+    except Exception:
+        rate= '1/minute'
+
 class CMMApiStudentProfile(APIView):
     authentication_classes = (BearerAuthentication,)
     permission_classes = (permissions.IsAuthenticated,)
+    throttle_classes = [CustomUserRateThrottle]
 
     @transaction.non_atomic_requests
     def dispatch(self, args, **kwargs):
@@ -45,16 +53,23 @@ class CMMApiStudentProfile(APIView):
 class CMMApiORA2Report(APIView):
     authentication_classes = (BearerAuthentication,)
     permission_classes = (permissions.IsAuthenticated,)
+    throttle_classes = [CustomUserRateThrottle]
 
     @transaction.non_atomic_requests
     def dispatch(self, args, **kwargs):
         return super(CMMApiORA2Report, self).dispatch(args, **kwargs)
 
     def post(self, request, format=None):
+        """
+        Traceback (most recent call last):
+        File "/openedx/edx-platform/lms/djangoapps/instructor_task/api_helper.py", line 450, in submit_task
+            task_class.apply_async(task_args, task_id=task_id)
+        AttributeError: 'function' object has no attribute 'apply_async'
+        """
         if not request.user.is_anonymous:
             serializer = CMMCourseSerializer(data=request.data)
             if serializer.is_valid():
-                response = export_ora2_data(request, serializer.data['course_id'])
+                response = utils_export_ora2_data(request, serializer.data['course_id'])
                 return Response(data=response, status=status.HTTP_200_OK)
             else:
                 logger.error("CMMApi - ORA2 - serializer is not valid")
@@ -66,6 +81,7 @@ class CMMApiORA2Report(APIView):
 class CMMApiStatusTask(APIView):
     authentication_classes = (BearerAuthentication,)
     permission_classes = (permissions.IsAuthenticated,)
+    throttle_classes = [CustomUserRateThrottle]
 
     def get(self, request, format=None):
         if not request.user.is_anonymous:
@@ -83,6 +99,7 @@ class CMMApiStatusTask(APIView):
 class CMMApiProblemReport(APIView):
     authentication_classes = (BearerAuthentication,)
     permission_classes = (permissions.IsAuthenticated,)
+    throttle_classes = [CustomUserRateThrottle]
 
     @transaction.non_atomic_requests
     def dispatch(self, args, **kwargs):
@@ -104,6 +121,7 @@ class CMMApiProblemReport(APIView):
 class CMMApiStudentRole(APIView):
     authentication_classes = (BearerAuthentication,)
     permission_classes = (permissions.IsAuthenticated,)
+    throttle_classes = [CustomUserRateThrottle]
 
     @transaction.non_atomic_requests
     def dispatch(self, args, **kwargs):

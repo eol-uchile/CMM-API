@@ -159,7 +159,7 @@ def get_status_tasks(course_id):
     }
     return response_payload
 
-def export_ora2_data(request, course_id):
+def utils_export_ora2_data(request, course_id):
     """
     Pushes a Celery task which will aggregate ora2 responses for a course into a .csv
     """

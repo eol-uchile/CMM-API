@@ -33,10 +33,10 @@ def get_user_roles(course_key):
         Get all user with role in the course
     """
     try:
-        user_roles_model = list(CourseAccessRole.objects.filter(course_id=course_key).values('user__username', 'user__email','user__edxloginuser__run'))
+        user_roles_model = list(CourseAccessRole.objects.filter(course_id=course_key).values('user__username', 'user__email','user__edxloginuser__run').distinct())
     except FieldError:
         logger.error("CMMApi - Error with UchileEdxLogin model")
-        user_roles_model = list(CourseAccessRole.objects.filter(course_id=course_key).values('user__username', 'user__email'))
+        user_roles_model = list(CourseAccessRole.objects.filter(course_id=course_key).values('user__username', 'user__email').distinct())
     return user_roles_model
 
 def get_user_info_role(course_key):

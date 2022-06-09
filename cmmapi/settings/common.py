@@ -1,2 +1,2 @@
 def plugin_settings(settings):
-    pass
+    settings.CMM_API_RATE = '1/minute'

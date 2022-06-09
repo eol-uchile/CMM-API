@@ -21,7 +21,7 @@ from lms.djangoapps.instructor_task.tasks_helper.enrollments import upload_stude
 from lms.djangoapps.instructor_task.models import InstructorTask, ReportStore
 from django.test.utils import override_settings
 from cmmapi.serializers import CMMCourseSerializer, CMMProblemSerializer
-from cmmapi.utils import get_students_features, get_status_tasks, export_ora2_data, get_problem_responses, get_students_roles
+from cmmapi.utils import get_students_features, get_status_tasks, utils_export_ora2_data, get_problem_responses, get_students_roles
 from cmmapi.task import generate
 from unittest.case import SkipTest
 from uuid import uuid4
@@ -134,7 +134,7 @@ class TestCMMAPI(ModuleStoreTestCase):
             test ora2 report has been generated
         """
         mock_submit.side_effect = [namedtuple("Task",["task_id",])('123-456-789',),]
-        result = export_ora2_data(Mock(), str(self.course.id))
+        result = utils_export_ora2_data(Mock(), str(self.course.id))
         success_status = 'El reporte ORA2 está siendo creado.'
         expected = {"status": success_status, 'task_id': '123-456-789'}
         self.assertEqual(expected, result)

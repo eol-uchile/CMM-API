@@ -6,6 +6,12 @@
     docker-compose exec lms pip install -e /openedx/requirements/cmmapi
     docker-compose exec lms_worker pip install -e /openedx/requirements/cmmapi
 
+# Configuration
+
+Set rate limit in lms.yml
+
+    CMM_API_RATE: '1/minute'
+
 ## TESTS
 **Prepare tests:**
 
